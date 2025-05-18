@@ -42,7 +42,8 @@ if __name__ == '__main__':
         print(f"{agent_id}: {env.observation_space[agent_id].shape[0]}")
     print(f"Total critic dimensions: {critic_dims}")
 
-    maddpg_agents = MADDPG(actor_dims, critic_dims, num_uav,num_target, n_actions,
+    maddpg_agents = MADDPG(actor_dims=actor_dims, critic_dims=critic_dims,n_agents=8, n_actions=n_actions,
+                           num_uav=3,num_target=5, 
                            fc1=128, fc2=128,
                            alpha=0.00001, beta=0.02, gamma =0.7, scenario='UAV_Round_up_3uav_5target',
                            chkpt_dir='tmp/maddpg_3uav_5target/')

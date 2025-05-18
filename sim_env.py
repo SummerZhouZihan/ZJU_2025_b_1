@@ -28,6 +28,7 @@ class UAVEnv:
         # self.a_max_e = 0.05 # 目标最大加速度
         self.L_sensor = 0.2 # 激光传感器的最大探测距离
         self.num_lasers = 16 # 激光射线的数量
+        self.d_capture = 0.3  # 捕获目标的距离阈值，小于这个距离视作捕获
         self.target_detected = [False] * self.num_target  # 每个目标是否被发现
         self.multi_current_pos = []  # 初始化位置列表
         self.multi_current_vel = []  # 初始化速度列表
@@ -40,12 +41,7 @@ class UAVEnv:
         self.history_positions = [[] for _ in range(num_agents)]
         self.total_distance = [0] * self.num_agents  # 添加总距离记录
         self.last_positions = None  # 记录上一步位置
-        #self.action_space = {
-        #'agent_0': spaces.Box(low=-self.v_max, high=self.v_max, shape=(2,)),
-        #'agent_1': spaces.Box(low=-self.v_max, high=self.v_max, shape=(2,)),
-        #'agent_2': spaces.Box(low=-self.v_max, high=self.v_max, shape=(2,)),
-        #'target': spaces.Box(low=-self.v_max_e, high=self.v_max_e, shape=(2,))
-        #} # 直接用速度限制
+
         self.action_space = {} # 初始化动作空间
         for i in range(self.num_uav):
             self.action_space[f'uav_{i}'] = spaces.Box(low=-self.v_max, high=self.v_max, shape=(2,))
@@ -121,6 +117,12 @@ class UAVEnv:
         # print(actions)
         # time.sleep(0.1)
 
+        # 检查动作列表长度
+        if len(actions) != self.num_agents:
+            print(f"动作列表长度错误: 期望 {self.num_agents}, 实际 {len(actions)}")
+            print(f"UAV数量: {self.num_uav}, 目标数量: {self.num_target}")
+            raise ValueError("动作列表长度不匹配")
+
         for i in range(self.num_uav): # 无人机
             pos = self.multi_current_pos[i]
             # 记录到目标的距离
@@ -131,10 +133,20 @@ class UAVEnv:
                 target_distances.append(np.linalg.norm(pos - pos_target))
             last_d2target.append(min(target_distances))  # 使用最近的目标距离
 
-            # 直接将action作为速度，而不是加速度
-            if not isinstance(actions[i], np.ndarray):
-                actions[i] = np.array(actions[i])
-            self.multi_current_vel[i] = actions[i]
+            
+            # 处理动作 - 确保动作维度正确
+            action = actions[i]
+            if isinstance(action, np.ndarray):
+                if action.shape != (2,):
+                    # 如果维度不正确，尝试重塑或取前两个值
+                    action = action[:2] if len(action) > 2 else np.zeros(2)
+            else:
+                action = np.array(action, dtype=np.float32)
+                if action.shape != (2,):
+                    action = action[:2] if len(action) > 2 else np.zeros(2)
+            assert actions[i].shape == (2,), f"动作维度错误: {actions[i].shape}"
+            assert self.multi_current_pos[i].shape == (2,), f"位置维度错误: {self.multi_current_pos[i].shape}"
+            self.multi_current_vel[i] = actions[i] # 更新速度
             # 速度限制
             vel_magnitude = np.linalg.norm(self.multi_current_vel[i])
             if vel_magnitude >= self.v_max:
@@ -143,18 +155,18 @@ class UAVEnv:
             self.multi_current_pos[i] += self.multi_current_vel[i] * self.time_step
 
         for i in range(self.num_target): # 目标
-            target_idx = self.num_uav + i  # 修正：使用正确的索引访问目标
+            target_idx = self.num_uav + i  
             pos = self.multi_current_pos[target_idx]
             # 直接将action作为速度，而不是加速度
             if not isinstance(actions[target_idx], np.ndarray):
                 actions[target_idx] = np.array(actions[target_idx])
             
-            # 更新速度
-            self.multi_current_vel[target_idx] = actions[target_idx]
+            # 目标点保持静止
+            self.multi_current_vel[target_idx] = np.zeros(2)  # 初始化速度为0
             # 速度限制
-            vel_magnitude = np.linalg.norm(self.multi_current_vel[target_idx])
-            if vel_magnitude >= self.v_max_e:
-                self.multi_current_vel[target_idx] = self.multi_current_vel[target_idx] / vel_magnitude * self.v_max_e
+            #vel_magnitude = np.linalg.norm(self.multi_current_vel[target_idx])
+            #if vel_magnitude >= self.v_max_e:
+            #    self.multi_current_vel[target_idx] = self.multi_current_vel[target_idx] / vel_magnitude * self.v_max_e
             # 位置更新
             self.multi_current_pos[target_idx] += self.multi_current_vel[target_idx] * self.time_step
 
@@ -318,8 +330,8 @@ class UAVEnv:
         d_capture = 0.3 # 捕获目标的距离, 小于这个距离视作捕获
         d_limit = 0.75 # 目标捕获的距离限制
 
-        ## 1 reward for single rounding-up-UAVs:接近目标奖励
-        for i in range(self.num_uva):
+        ## 接近目标奖励 + 重复侦查惩罚
+        for i in range(self.num_uav):
         #    pos = self.multi_current_pos[i]
         #    vel = self.multi_current_vel[i]
         #    pos_target = self.multi_current_pos[-1]
@@ -341,13 +353,22 @@ class UAVEnv:
                 d = np.linalg.norm(dire_vec)
                 v_i = np.linalg.norm(vel)
             
-                if not self.target_detected[j]:  # 如果目标未被发现
-                    if d <= self.d_capture:
+                # 检查是否在捕获范围内
+                if d <= self.d_capture:
+                    if not self.target_detected[j]:  # 首次发现目标
                         self.target_detected[j] = True
-                        rewards[i] += self.mu5 * 10  # 首次发现奖励
+                        self.target_detect_count[j] += 1
+                        rewards[i] += self.mu5 * 10  # 首次侦查奖励
+
+                    else:  # 重复侦查，给予惩罚
+                        rewards[i] += self.repeat_penalty
+                        # 增加推离力，让UAV远离已发现的目标
+                        rewards[i] += -5.0 * (1.0 / (d + 1e-5))
             
-                cos_v_d = np.dot(vel, dire_vec)/(v_i*d + 1e-3)
-                r_near += abs(2*v_i/self.v_max)*cos_v_d
+                # 仅对未发现的目标计算接近奖励
+                if not self.target_detected[j]:
+                    cos_v_d = np.dot(vel, dire_vec)/(v_i*d + 1e-3)
+                    r_near += abs(2*v_i/self.v_max)*cos_v_d
             
         rewards[i] += self.mu1 * r_near / self.num_target
 
@@ -393,17 +414,6 @@ class UAVEnv:
         ## 4 finish rewards 完成目标的奖励,还需要修改!
         if all(self.target_detected):
             rewards = [r + 50 for r in rewards]  # 给予所有agent完成奖励
-
-        # 5 重复侦查奖励
-        if not self.target_first_detected:
-            for i in range(3):  # 遍历所有追捕者
-                pos = self.multi_current_pos[i]
-                pos_target = self.multi_current_pos[-1]
-                d = np.linalg.norm(pos - pos_target)
-                if d <= d_capture:  # 如果有任一无人机接近目标
-                    self.target_first_detected = True
-                    rewards[0:3] += mu5 * 10  # 所有追捕者都获得奖励
-                break
 
         ## 6 无人机间距奖励
         mu6 = 0.3  # 无人机间距奖励系数

@@ -2,6 +2,7 @@ import os
 import torch as T
 import torch.nn.functional as F
 from agent import Agent
+import numpy as np
 # from torch.utils.tensorboard import SummaryWriter
 
 ## 所有的智能体共享相同的网络结构和学习参数, 但每个智能体使用不同的状态维度(actor_dims)进行训练
@@ -10,16 +11,13 @@ class MADDPG:
                  scenario='simple',  alpha=0.00001, beta=0.02, fc1=128, 
                  fc2=128, gamma=0.7, tau=0.01, chkpt_dir='tmp/maddpg/'):
         self.agents = []
-        self.n_agents = n_agents
+        self.n_agents = num_uav + num_target
         self.n_actions = n_actions
         chkpt_dir += scenario
         self.num_uav = num_uav
         self.num_target = num_target
 
         # self.writer = SummaryWriter(log_dir=os.path.join(chkpt_dir, 'logs'))
-        # 调试输出
-        print(f"Actor 维度列表: {actor_dims}")
-        print(f"Critic 总维度: {critic_dims}")
         # 分别为UAV和目标创建Agent
         # 创建UAV智能体
         for uav_idx in range(self.num_uav):
@@ -27,7 +25,7 @@ class MADDPG:
                 actor_dims=actor_dims[uav_idx],
                 critic_dims=critic_dims + (num_uav + num_target) * n_actions,
                 n_actions=n_actions,
-                n_agents=self.num_uav ,
+                n_agents=self.num_uav +self.num_target,
                 agent_idx=uav_idx,
                 alpha=alpha,
                 beta=beta,
@@ -87,10 +85,10 @@ class MADDPG:
 
         # 处理目标的动作
         for target_idx in range(self.num_target):
-            agent_idx = self.num_uav + target_idx
-            action = self.agents[agent_idx].choose_action(raw_obs[agent_idx], time_step, evaluate)
-            actions.append(action)
-    
+            actions.append(np.zeros(2)) # 目标不移动
+        # 验证动作列表长度
+        expected_length = self.num_uav + self.num_target
+        assert len(actions) == expected_length, f"动作列表长度错误: 期望{expected_length}, 实际{len(actions)}"
         return actions
 
     def learn(self, memory, total_steps):
