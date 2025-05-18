@@ -35,7 +35,7 @@ if __name__ == '__main__':
     n_actions = 2
     maddpg_agents = MADDPG(actor_dims, critic_dims, n_agents, n_actions, 
                            fc1=128, fc2=128,
-                           alpha=0.0001, beta=0.003, scenario='UAV_Round_up',
+                           alpha=0.00001, beta=0.02, gamma =0.7, scenario='UAV_Round_up',
                            chkpt_dir='tmp/maddpg/')
 
     memory = MultiAgentReplayBuffer(1000000, critic_dims, actor_dims, 
@@ -47,7 +47,7 @@ if __name__ == '__main__':
     total_steps = 0
     score_history = []
     target_score_history = []
-    evaluate = True
+    evaluate = False # True for 验证, False for 训练
     best_score = -30
 
     if evaluate:

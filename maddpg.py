@@ -6,8 +6,8 @@ from agent import Agent
 
 class MADDPG:
     def __init__(self, actor_dims, critic_dims, n_agents, n_actions, 
-                 scenario='simple',  alpha=0.01, beta=0.02, fc1=128, 
-                 fc2=128, gamma=0.99, tau=0.01, chkpt_dir='tmp/maddpg/'):
+                 scenario='simple',  alpha=0.00001, beta=0.02, fc1=128, 
+                 fc2=128, gamma=0.7, tau=0.01, chkpt_dir='tmp/maddpg/'):
         self.agents = []
         self.n_agents = n_agents
         self.n_actions = n_actions
