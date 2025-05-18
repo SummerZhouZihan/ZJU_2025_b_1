@@ -4,37 +4,93 @@ import torch.nn.functional as F
 from agent import Agent
 # from torch.utils.tensorboard import SummaryWriter
 
+## 所有的智能体共享相同的网络结构和学习参数, 但每个智能体使用不同的状态维度(actor_dims)进行训练
 class MADDPG:
-    def __init__(self, actor_dims, critic_dims, n_agents, n_actions, 
+    def __init__(self, actor_dims, critic_dims, n_agents, n_actions, num_uav=3, num_target=5,
                  scenario='simple',  alpha=0.00001, beta=0.02, fc1=128, 
                  fc2=128, gamma=0.7, tau=0.01, chkpt_dir='tmp/maddpg/'):
         self.agents = []
         self.n_agents = n_agents
         self.n_actions = n_actions
         chkpt_dir += scenario
-        # self.writer = SummaryWriter(log_dir=os.path.join(chkpt_dir, 'logs'))
+        self.num_uav = num_uav
+        self.num_target = num_target
 
-        for agent_idx in range(self.n_agents):
-            self.agents.append(Agent(actor_dims[agent_idx], critic_dims,  
-                            n_actions, n_agents, agent_idx, alpha=alpha, beta=beta,
-                            chkpt_dir=chkpt_dir))
+        # self.writer = SummaryWriter(log_dir=os.path.join(chkpt_dir, 'logs'))
+        # 调试输出
+        print(f"Actor 维度列表: {actor_dims}")
+        print(f"Critic 总维度: {critic_dims}")
+        # 分别为UAV和目标创建Agent
+        # 创建UAV智能体
+        for uav_idx in range(self.num_uav):
+            agent = Agent(
+                actor_dims=actor_dims[uav_idx],
+                critic_dims=critic_dims + (num_uav + num_target) * n_actions,
+                n_actions=n_actions,
+                n_agents=self.num_uav ,
+                agent_idx=uav_idx,
+                alpha=alpha,
+                beta=beta,
+                chkpt_dir=chkpt_dir + '/uav_' + str(uav_idx),
+                fc1=fc1,
+                fc2=fc2
+            )
+            self.agents.append(agent)
+        
+        # 创建target智能体
+        for target_idx in range(self.num_target):
+            agent = Agent(
+                actor_dims=actor_dims[self.num_uav + target_idx],
+                critic_dims=critic_dims + (num_uav + num_target) * n_actions,
+                n_actions=n_actions,
+                n_agents=self.num_target + self.num_uav,
+                agent_idx=self.num_uav ,
+                alpha=alpha,
+                beta=beta,
+                chkpt_dir=chkpt_dir + '/target_' + str(target_idx),
+                fc1=fc1,
+                fc2=fc2
+            )
+            self.agents.append(agent)
+
 
     def save_checkpoint(self):
         print('... saving checkpoint ...')
-        for agent in self.agents:
-            os.makedirs(os.path.dirname(agent.actor.chkpt_file), exist_ok=True)
-            agent.save_models()
+        # 保存UAV模型
+        for uav_idx in range(self.num_uav):
+            os.makedirs(os.path.dirname(self.agents[uav_idx].actor.chkpt_file), exist_ok=True)
+            self.agents[uav_idx].save_models()
+    
+        # 保存目标模型
+        for target_idx in range(self.num_target):
+            agent_idx = self.num_uav + target_idx
+            os.makedirs(os.path.dirname(self.agents[agent_idx].actor.chkpt_file), exist_ok=True)
+            self.agents[agent_idx].save_models()
 
     def load_checkpoint(self):
         print('... loading checkpoint ...')
-        for agent in self.agents:
-            agent.load_models()
+        # 加载UAV模型
+        for uav_idx in range(self.num_uav):
+            self.agents[uav_idx].load_models()
+    
+        # 加载目标模型
+        for target_idx in range(self.num_target):
+            agent_idx = self.num_uav + target_idx
+            self.agents[agent_idx].load_models()
 
     def choose_action(self, raw_obs, time_step, evaluate):# timestep for exploration
         actions = []
-        for agent_idx, agent in enumerate(self.agents):
-            action = agent.choose_action(raw_obs[agent_idx],time_step, evaluate)
+        # 处理UAV的动作
+        for uav_idx in range(self.num_uav):
+            action = self.agents[uav_idx].choose_action(raw_obs[uav_idx], time_step, evaluate)
             actions.append(action)
+
+        # 处理目标的动作
+        for target_idx in range(self.num_target):
+            agent_idx = self.num_uav + target_idx
+            action = self.agents[agent_idx].choose_action(raw_obs[agent_idx], time_step, evaluate)
+            actions.append(action)
+    
         return actions
 
     def learn(self, memory, total_steps):
@@ -55,13 +111,17 @@ class MADDPG:
         all_agents_new_actions = []
         old_agents_actions = []
     
-        for agent_idx, agent in enumerate(self.agents):
-
-            new_states = T.tensor(actor_new_states[agent_idx], 
-                                dtype=T.float).to(device)
-
-            new_pi = agent.target_actor.forward(new_states)
-
+        # 分别处理UAV和目标的新动作
+        for uav_idx in range(self.num_uav):
+            new_states = T.tensor(actor_new_states[uav_idx], dtype=T.float).to(device)
+            new_pi = self.agents[uav_idx].target_actor.forward(new_states)
+            all_agents_new_actions.append(new_pi)
+            old_agents_actions.append(actions[uav_idx])
+    
+        for target_idx in range(self.num_target):
+            agent_idx = self.num_uav + target_idx
+            new_states = T.tensor(actor_new_states[agent_idx], dtype=T.float).to(device)
+            new_pi = self.agents[agent_idx].target_actor.forward(new_states)
             all_agents_new_actions.append(new_pi)
             old_agents_actions.append(actions[agent_idx])
 

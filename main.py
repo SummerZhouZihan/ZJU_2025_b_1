@@ -23,7 +23,7 @@ def save_image(env_render, filename):
 
 if __name__ == '__main__':
 
-    env = UAVEnv()
+    env = UAVEnv(num_uav=3, num_target=5)
     # print(env.info)
     n_agents = env.num_agents
     actor_dims = []
@@ -33,22 +33,31 @@ if __name__ == '__main__':
 
     # action space is a list of arrays, assume each agent has same action space
     n_actions = 2
-    maddpg_agents = MADDPG(actor_dims, critic_dims, n_agents, n_actions, 
-                           fc1=128, fc2=128,
-                           alpha=0.00001, beta=0.02, gamma =0.7, scenario='UAV_Round_up',
-                           chkpt_dir='tmp/maddpg/')
+    num_uav = 3
+    num_target = 5
+    # 调试部分
+    # 打印观察空间维度进行调试
+    print("Observation space dimensions:")
+    for agent_id in env.observation_space.keys():
+        print(f"{agent_id}: {env.observation_space[agent_id].shape[0]}")
+    print(f"Total critic dimensions: {critic_dims}")
 
-    memory = MultiAgentReplayBuffer(1000000, critic_dims, actor_dims, 
-                        n_actions, n_agents, batch_size=256)
+    maddpg_agents = MADDPG(actor_dims, critic_dims, num_uav,num_target, n_actions,
+                           fc1=128, fc2=128,
+                           alpha=0.00001, beta=0.02, gamma =0.7, scenario='UAV_Round_up_3uav_5target',
+                           chkpt_dir='tmp/maddpg_3uav_5target/')
+
+    memory = MultiAgentReplayBuffer(2000000, critic_dims=critic_dims, actor_dims=actor_dims, 
+                        n_actions=n_actions, batch_size=256)
 
     PRINT_INTERVAL = 100
     N_GAMES = 5000
-    MAX_STEPS = 100
+    MAX_STEPS = 150
     total_steps = 0
     score_history = []
     target_score_history = []
     evaluate = False # True for 验证, False for 训练
-    best_score = -30
+    best_score = -50 
 
     if evaluate:
         maddpg_agents.load_checkpoint()
@@ -60,9 +69,9 @@ if __name__ == '__main__':
         obs = env.reset()
         score = 0
         score_target = 0
-        dones = [False]*n_agents
+        dones = False
         episode_step = 0
-        while not any(dones):
+        while not dones: # 当所有目标点都被覆盖时结束
             if evaluate:
                 # env.render()
                 env_render = env.render()
@@ -75,20 +84,22 @@ if __name__ == '__main__':
             actions = maddpg_agents.choose_action(obs,total_steps,evaluate)
             obs_, rewards, dones = env.step(actions)
 
+            done = dones[0]
+
             state = obs_list_to_state_vector(obs)
             state_ = obs_list_to_state_vector(obs_)
 
             if episode_step >= MAX_STEPS:
-                dones = [True]*n_agents
+                done = True 
 
-            memory.store_transition(obs, state, actions, rewards, obs_, state_, dones)
+            memory.store_transition(obs, state, actions, rewards, obs_, state_, [done]*n_agents)
 
             if total_steps % 10 == 0 and not evaluate:
                 maddpg_agents.learn(memory,total_steps)
 
             obs = obs_
-            score += sum(rewards[0:2])
-            score_target += rewards[-1]
+            score += sum(rewards[0: num_uav])
+            score_target += sum(rewards[num_uav:])
             total_steps += 1
             episode_step += 1
 
@@ -105,9 +116,14 @@ if __name__ == '__main__':
             print('episode', i, 'average score {:.1f}'.format(avg_score),'; average target score {:.1f}'.format(avg_target_score))
     
     # save data
-    file_name = 'score_history.csv'
+    file_name = 'score_history_3uav_5target.csv'
     if not os.path.exists(file_name):
-        pd.DataFrame([score_history]).to_csv(file_name, header=False, index=False)
+        header = ['episode', 'uav1_score', 'uav2_score', 'uav3_score', 
+              'target1_score', 'target2_score', 'target3_score', 
+              'target4_score', 'target5_score']
+        df = pd.DataFrame([score_history], columns=header)
+        df.to_csv(file_name, index=False)
+        #pd.DataFrame([score_history]).to_csv(file_name, header=False, index=False)
     else:
         with open(file_name, 'a') as f:
             pd.DataFrame([score_history]).to_csv(f, header=False, index=False)

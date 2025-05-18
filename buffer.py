@@ -2,18 +2,30 @@ import numpy as np
 
 class MultiAgentReplayBuffer:
     def __init__(self, max_size, critic_dims, actor_dims, 
-            n_actions, n_agents, batch_size):
+            n_actions, num_uav=3,num_target=5, batch_size=256):
+        """
+        参数说明:
+        max_size: 缓冲区最大容量
+        critic_dim: critic网络的输入维度
+        actor_dims: 每个智能体actor网络的输入维度列表
+        n_actions: 动作空间维度
+        num_uav: UAV数量
+        num_target: 目标数量
+        batch_size: 批次大小
+        """
         self.mem_size = max_size
         self.mem_cntr = 0
-        self.n_agents = n_agents
+        self.hum_uav = num_uav
+        self.hum_target = num_target
+        self.n_agents = num_target + num_uav
         self.actor_dims = actor_dims
         self.batch_size = batch_size
         self.n_actions = n_actions
 
         self.state_memory = np.zeros((self.mem_size, critic_dims))
         self.new_state_memory = np.zeros((self.mem_size, critic_dims))
-        self.reward_memory = np.zeros((self.mem_size, n_agents))
-        self.terminal_memory = np.zeros((self.mem_size, n_agents), dtype=bool)
+        self.reward_memory = np.zeros((self.mem_size, num_target + num_uav))
+        self.terminal_memory = np.zeros((self.mem_size, num_target + num_uav), dtype=bool)
 
         self.init_actor_memory()
 

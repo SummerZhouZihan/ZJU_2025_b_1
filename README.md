@@ -1,18 +1,24 @@
+## ZJU_2025_b
+
+
+
 ## Key dependencies based (Lower versions are not guaranteed to be feasible):
 
-python: 3.9.0
+`python`: 3.8.20
 
-numpy: 1.26.0
+`numpy`: 1.23.1
 
-gym: 0.26.2
+`gym`: 0.19.0
 
-pillow: 10.2.0
+`gymnasium`:1.1.1
 
-torch: 2.4.0+cu124
+`pillow`: 10.4.0
 
-torchaudio: 2.4.0+cu124
+`torch`: 1.10.0+cu113
 
-torchvision: 0.19.0+cu124
+`torchaudio`: 0.10.0+cu113
+
+`torchvision`: 0.11.1+cu113
 
 ## Explanation of Document
 
@@ -26,9 +32,3 @@ torchvision: 0.19.0+cu124
 
 - `math_tool`: some math-relevant functions.
 
-<img title="" src="Roundup.png" alt="" data-align="center" width="470">
-
----
-
-## Stargazers over time
-[![Stargazers over time](https://starchart.cc/reinshift/MADDPG_Multi_UAV_Roundup.svg?variant=adaptive)](https://starchart.cc/reinshift/MADDPG_Multi_UAV_Roundup)

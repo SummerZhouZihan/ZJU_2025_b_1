@@ -4,8 +4,8 @@ import numpy as np
 
 class Agent:
     def __init__(self, actor_dims, critic_dims, n_actions, n_agents, agent_idx, chkpt_dir,
-                    alpha=0.0001, beta=0.0002, fc1=128,
-                    fc2=128, gamma=0.99, tau=0.01):
+                    alpha=0.00001, beta=0.02, fc1=128,
+                    fc2=128, gamma=0.7, tau=0.01):
         self.gamma = gamma
         self.tau = tau
         self.n_actions = n_actions
