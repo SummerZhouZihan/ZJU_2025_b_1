@@ -68,7 +68,6 @@ class UAVEnv:
         for i in range(self.num_target):
             self.observation_space[f'target_{i}'] = spaces.Box(
                 low=-np.inf, high=np.inf, shape=(target_obs_dim,))
-        
 
     def reset(self):
         SEED = random.randint(1,1000)
@@ -92,7 +91,6 @@ class UAVEnv:
         ]
         for i in range(self.num_target):
             start_positions.append(target_positions[i])
-
         # 初始化位置和速度
         self.multi_current_pos = []
         self.multi_current_vel = []
@@ -129,7 +127,6 @@ class UAVEnv:
                 target_distances.append(np.linalg.norm(pos - pos_target))
             last_d2target.append(min(target_distances))  # 使用最近的目标距离
 
-            
             # 处理动作 - 确保动作维度正确
             action = actions[i]
             if isinstance(action, np.ndarray):
@@ -243,12 +240,6 @@ class UAVEnv:
                     dx = (other_pos[0] - current_pos[0])/self.length
                     dy = (other_pos[1] - current_pos[1])/self.length
                     other_uav_info.extend([dx, dy])
-
-            #  目标信息 (3*num_target维)
-            # 每个目标包含3个特征：
-            # [0] 归一化距离 
-            # [1] sin(相对角度)
-            # [2] cos(相对角度)
             target_info = []
             for target_idx in range(self.num_target):
                 # 计算目标绝对索引
@@ -306,13 +297,6 @@ class UAVEnv:
         return total_obs
 
     def cal_rewards_dones(self,IsCollied,last_d): # 奖励函数
-        # 输入
-        # Iscollied 表示每个无人机是否与障碍物相撞
-        # last_d 是一个列表，表示每个无人机到目标的距离
-        # 输出
-        # rewards 是一个列表，表示每个无人机的奖励
-        # dones 是一个布尔值列表，表示每个无人机是否完成任务
-        
         rewards = np.zeros(self.num_agents)
         for take_off_idx in range(self.num_uav):
             # 没有到无人机起飞时间不算奖励

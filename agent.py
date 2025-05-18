@@ -37,7 +37,7 @@ class Agent:
         noise_scale = max(min_noise, max_noise * (decay_rate ** time_step))
         noise = 2 * T.rand(self.n_actions).to(self.actor.device) - 1 # [-1,1)
         if not evaluate:
-            epsilon = max(0.01, 0.2 * (1 - time_step/10000000))# 线性衰减的探索率
+            epsilon = max(0.01, 0.1 * (1 - time_step/10000000))# 线性衰减的探索率
             noise = np.random.normal(0, epsilon, size=actions.shape)# OU噪声
             
         else:

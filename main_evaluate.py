@@ -128,21 +128,6 @@ if __name__ == '__main__':
         if any(dones):
             ani.event_source.stop()
             print("Round-up finished in",frame,"steps.")
-            # smoothed_velocities_magnitude = [[] for _ in range(env.num_agents)]
-            # smoothed_velocities_x = [[] for _ in range(env.num_agents)]  
-            # smoothed_velocities_y = [[] for _ in range(env.num_agents)] 
-            # for i in range(env.num_agents):
-            #     _velocity_magnitude = moving_average(velocities_magnitude[i],window_size=5)
-            #     _velocity_x = moving_average(velocities_x[i],window_size=5)
-            #     _velocity_y = moving_average(velocities_y[i],window_size=5)
-            #     smoothed_velocities_magnitude[i]=_velocity_magnitude
-            #     smoothed_velocities_x[i]=_velocity_x
-            #     smoothed_velocities_y[i]=_velocity_y
-            # # plot_velocities(smoothed_velocities_magnitude,smoothed_velocities_x,smoothed_velocities_y)
-            # time_steps = range(len(smoothed_velocities_magnitude[0]))
-            # plot_velocity_magnitude(time_steps,smoothed_velocities_magnitude)
-            # plot_velocity_x(time_steps, smoothed_velocities_x)
-            # plot_velocity_y(time_steps, smoothed_velocities_y)
         return []
 
     total_steps = 0

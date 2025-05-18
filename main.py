@@ -38,11 +38,11 @@ if __name__ == '__main__':
     maddpg_agents = MADDPG(actor_dims=actor_dims, critic_dims=critic_dims,n_agents=8, n_actions=n_actions,
                            num_uav=3,num_target=5, 
                            fc1=128, fc2=128,
-                           alpha=0.0000025, beta=0.0005, gamma =0.95, scenario='UAV_Round_up_3uav_5target',
+                           alpha=0.00000005, beta=0.0000005, gamma =0.95, scenario='UAV_Round_up_3uav_5target',
                            chkpt_dir='tmp/maddpg_3uav_5target/')
 
     memory = MultiAgentReplayBuffer(2000000, critic_dims=critic_dims, actor_dims=actor_dims, 
-                        n_actions=n_actions, batch_size=512)
+                        n_actions=n_actions, batch_size=2048)
 
     PRINT_INTERVAL = 100
     N_GAMES = 8000
