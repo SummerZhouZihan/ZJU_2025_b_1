@@ -101,8 +101,8 @@ if __name__ == '__main__':
         actor_dims.append(env.observation_space[agent_id].shape[0])
     critic_dims = sum(actor_dims)
     maddpg_agents = MADDPG(actor_dims, critic_dims, n_agents, n_actions,
-                           fc1=128, fc2=128, alpha=0.0001, beta=0.003, scenario='UAV_Round_up',
-                           chkpt_dir='tmp/maddpg/')
+                           fc1=128, fc2=128, alpha=0.0001, beta=0.003, scenario='UAV_Round_up_3uav_5target',
+                           chkpt_dir='tmp/maddpg_3uav_5target/')
     
     maddpg_agents.load_checkpoint()
     print('---- Evaluating ----')

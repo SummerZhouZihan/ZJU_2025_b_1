@@ -37,11 +37,14 @@ class Agent:
         noise_scale = max(min_noise, max_noise * (decay_rate ** time_step))
         noise = 2 * T.rand(self.n_actions).to(self.actor.device) - 1 # [-1,1)
         if not evaluate:
-            noise = noise_scale * noise
+            epsilon = max(0.01, 0.2 * (1 - time_step/10000000))# 线性衰减的探索率
+            noise = np.random.normal(0, epsilon, size=actions.shape)# OU噪声
+            
         else:
             noise = 0 * noise
         
-        action = actions + noise
+        action = actions + T.tensor(noise, dtype=T.float).to(self.actor.device)
+
         action_np = action.detach().cpu().numpy()[0]
         magnitude = np.linalg.norm(action_np)
         if magnitude > 0.04:

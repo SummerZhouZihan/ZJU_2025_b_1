@@ -38,19 +38,19 @@ if __name__ == '__main__':
     maddpg_agents = MADDPG(actor_dims=actor_dims, critic_dims=critic_dims,n_agents=8, n_actions=n_actions,
                            num_uav=3,num_target=5, 
                            fc1=128, fc2=128,
-                           alpha=0.00001, beta=0.02, gamma =0.7, scenario='UAV_Round_up_3uav_5target',
+                           alpha=0.0000025, beta=0.0005, gamma =0.95, scenario='UAV_Round_up_3uav_5target',
                            chkpt_dir='tmp/maddpg_3uav_5target/')
 
     memory = MultiAgentReplayBuffer(2000000, critic_dims=critic_dims, actor_dims=actor_dims, 
-                        n_actions=n_actions, batch_size=256)
+                        n_actions=n_actions, batch_size=512)
 
     PRINT_INTERVAL = 100
-    N_GAMES = 5000
+    N_GAMES = 8000
     MAX_STEPS = 150
     total_steps = 0
     score_history = []
     target_score_history = []
-    evaluate = False # True for 验证, False for 训练
+    evaluate = True # True for 验证, False for 训练
     best_score = -50 
 
     if evaluate:
@@ -65,8 +65,8 @@ if __name__ == '__main__':
         score_target = 0
         dones = False
         episode_step = 0
-        while not dones: # 当所有目标点都被覆盖时结束
-            if evaluate:
+        while not dones: # 当所有任务完成时结束
+            if evaluate: # 评估
                 # env.render()
                 env_render = env.render()
                 if episode_step % 10 == 0:
@@ -88,7 +88,7 @@ if __name__ == '__main__':
 
             memory.store_transition(obs, state, actions, rewards, obs_, state_, [done]*n_agents)
 
-            if total_steps % 10 == 0 and not evaluate:
+            if total_steps % 5 == 0 and not evaluate:
                 maddpg_agents.learn(memory,total_steps)
 
             obs = obs_
@@ -107,17 +107,33 @@ if __name__ == '__main__':
                 maddpg_agents.save_checkpoint()
                 best_score = avg_score
         if i % PRINT_INTERVAL == 0 and i > 0:
-            print('episode', i, 'average score {:.1f}'.format(avg_score),'; average target score {:.1f}'.format(avg_target_score))
+            print('episode', i, 'average score {:.1f}'.format(avg_score))
+            #print(f'Episode {i}:')
+            #print(f'Average score: {avg_score:.1f}')
     
     # save data
     file_name = 'score_history_3uav_5target.csv'
+    header = ['episode', 'uav1_score', 'uav2_score', 'uav3_score', 
+          'target1_score', 'target2_score', 'target3_score', 
+          'target4_score', 'target5_score']
+
+    # 创建每个智能体的分数列表
+    episode_scores = {
+        'episode': i,
+        'uav1_score': score_history[-1] if len(score_history) > 0 else 0,
+        'uav2_score': score_history[-1] if len(score_history) > 0 else 0,
+        'uav3_score': score_history[-1] if len(score_history) > 0 else 0,
+        'target1_score': target_score_history[-1] if len(target_score_history) > 0 else 0,
+        'target2_score': target_score_history[-1] if len(target_score_history) > 0 else 0,
+        'target3_score': target_score_history[-1] if len(target_score_history) > 0 else 0,
+        'target4_score': target_score_history[-1] if len(target_score_history) > 0 else 0,
+        'target5_score': target_score_history[-1] if len(target_score_history) > 0 else 0
+    }
     if not os.path.exists(file_name):
-        header = ['episode', 'uav1_score', 'uav2_score', 'uav3_score', 
-              'target1_score', 'target2_score', 'target3_score', 
-              'target4_score', 'target5_score']
-        df = pd.DataFrame([score_history], columns=header)
+        df = pd.DataFrame([episode_scores])
         df.to_csv(file_name, index=False)
         #pd.DataFrame([score_history]).to_csv(file_name, header=False, index=False)
     else:
-        with open(file_name, 'a') as f:
-            pd.DataFrame([score_history]).to_csv(f, header=False, index=False)
+        df = pd.DataFrame([episode_scores])
+        df.to_csv(file_name, mode='a', header=False, index=False)
+    print(f"Training complete. Data saved to {file_name}")

@@ -32,3 +32,4 @@
 
 - `math_tool`: some math-relevant functions.
 
+- `clean`:清除tmp文件夹中的历史记录
