@@ -35,13 +35,6 @@ if __name__ == '__main__':
     n_actions = 2
     num_uav = 3
     num_target = 5
-    # 调试部分
-    # 打印观察空间维度进行调试
-    print("Observation space dimensions:")
-    for agent_id in env.observation_space.keys():
-        print(f"{agent_id}: {env.observation_space[agent_id].shape[0]}")
-    print(f"Total critic dimensions: {critic_dims}")
-
     maddpg_agents = MADDPG(actor_dims=actor_dims, critic_dims=critic_dims,n_agents=8, n_actions=n_actions,
                            num_uav=3,num_target=5, 
                            fc1=128, fc2=128,

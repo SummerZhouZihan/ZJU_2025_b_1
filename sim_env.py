@@ -28,8 +28,9 @@ class UAVEnv:
         # self.a_max_e = 0.05 # 目标最大加速度
         self.L_sensor = 0.2 # 激光传感器的最大探测距离
         self.num_lasers = 16 # 激光射线的数量
-        self.d_capture = 0.3  # 捕获目标的距离阈值，小于这个距离视作捕获
+        self.d_capture = 0.0001  # 捕获目标的距离阈值，小于这个距离视作捕获
         self.target_detected = [False] * self.num_target  # 每个目标是否被发现
+        self.target_detect_count = [0] * self.num_target  # 初始化每个目标被侦查的次数
         self.multi_current_pos = []  # 初始化位置列表
         self.multi_current_vel = []  # 初始化速度列表
         self.multi_current_lasers = [[self.L_sensor for _ in range(self.num_lasers)] for _ in range(self.num_agents)]
@@ -57,9 +58,6 @@ class UAVEnv:
         self.observation_space = {}        #初始化观察空间
         uav_obs_dim = 4 + 2*(num_uav-1) + 3*num_target + 16
         target_obs_dim = 18
-        
-        print(f"UAV observation dimension: {uav_obs_dim}")
-        print(f"Target observation dimension: {target_obs_dim}")
 
         for i in range(self.num_uav):
             self.observation_space[f'uav_{i}'] = spaces.Box(
@@ -102,6 +100,7 @@ class UAVEnv:
         self.multi_current_pos = []
         self.multi_current_vel = []
         self.target_detected = [False] * self.num_target  # 每个目标是否被发现
+        self.target_detect_count = [0] * self.num_target  # 重置每个目标被侦查的次数
         for i in range(self.num_target + self.num_uav):                  # 初始化所有目标速度为0
             self.multi_current_pos.append(start_positions[i])
             self.multi_current_vel.append(np.zeros(2))    # 所有智能体初始速度为0
@@ -116,12 +115,6 @@ class UAVEnv:
         last_d2target = [] # 记录每个无人机到目标的上一步距离
         # print(actions)
         # time.sleep(0.1)
-
-        # 检查动作列表长度
-        if len(actions) != self.num_agents:
-            print(f"动作列表长度错误: 期望 {self.num_agents}, 实际 {len(actions)}")
-            print(f"UAV数量: {self.num_uav}, 目标数量: {self.num_target}")
-            raise ValueError("动作列表长度不匹配")
 
         for i in range(self.num_uav): # 无人机
             pos = self.multi_current_pos[i]
@@ -189,7 +182,6 @@ class UAVEnv:
                 distance = np.linalg.norm(pos_uav - pos_target)
                 if distance <= self.d_capture and not self.target_detected[target_idx]:
                     self.target_detected[target_idx] = True
-                    print(f"Target {target_idx} detected by UAV {uav_idx}!")
 
         # 状态更新和奖励式计算
         Collided = self.update_lasers_isCollied_wrapper() # 更新激光传感器和碰撞状态
@@ -340,14 +332,14 @@ class UAVEnv:
         #    d = np.linalg.norm(dire_vec) # distance to target
         #    cos_v_d = np.dot(vel,dire_vec)/(v_i*d + 1e-3)
         #    r_near = abs(2*v_i/self.v_max)*cos_v_d # 对方向敏感
-            # r_near = min(abs(v_i/self.v_max)*1.0/(d + 1e-5),10)/5 # 对距离敏感
+        #    r_near = min(abs(v_i/self.v_max)*1.0/(d + 1e-5),10)/5 # 对距离敏感
         #    rewards[i] += mu1 * r_near # TODO: if not get nearer then receive negative reward
             r_near = 0
             for j in range(self.num_target):
                 target_idx = self.num_uav + j
                 pos_target = self.multi_current_pos[target_idx]
-                pos = self.multi_current_pos[i]
-                vel = self.multi_current_vel[i]
+                pos = self.multi_current_pos[i] # 无人机位置
+                vel = self.multi_current_vel[i] # 无人机速度
             
                 dire_vec = pos_target - pos
                 d = np.linalg.norm(dire_vec)
@@ -361,7 +353,6 @@ class UAVEnv:
                         rewards[i] += self.mu5 * 10  # 首次侦查奖励
 
                     else:  # 重复侦查，给予惩罚
-                        rewards[i] += self.repeat_penalty
                         # 增加推离力，让UAV远离已发现的目标
                         rewards[i] += -5.0 * (1.0 / (d + 1e-5))
             

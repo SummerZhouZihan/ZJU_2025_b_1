@@ -18,10 +18,10 @@ class CriticNetwork(nn.Module):
         self.optimizer = optim.Adam(self.parameters(), lr=beta)
         self.scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size=5000, gamma=0.33)
         self.device = T.device('cuda:0' if T.cuda.is_available() else 'cpu')
- 
         self.to(self.device)
 
     def forward(self, state, action):
+
         x = F.relu(self.fc1(T.cat([state, action], dim=1)))
         x = F.relu(self.fc2(x))
         q = self.q(x)

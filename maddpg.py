@@ -23,7 +23,7 @@ class MADDPG:
         for uav_idx in range(self.num_uav):
             agent = Agent(
                 actor_dims=actor_dims[uav_idx],
-                critic_dims=critic_dims + (num_uav + num_target) * n_actions,
+                critic_dims=critic_dims,
                 n_actions=n_actions,
                 n_agents=self.num_uav +self.num_target,
                 agent_idx=uav_idx,
@@ -39,7 +39,7 @@ class MADDPG:
         for target_idx in range(self.num_target):
             agent = Agent(
                 actor_dims=actor_dims[self.num_uav + target_idx],
-                critic_dims=critic_dims + (num_uav + num_target) * n_actions,
+                critic_dims=critic_dims,
                 n_actions=n_actions,
                 n_agents=self.num_target + self.num_uav,
                 agent_idx=self.num_uav ,
@@ -87,8 +87,6 @@ class MADDPG:
         for target_idx in range(self.num_target):
             actions.append(np.zeros(2)) # 目标不移动
         # 验证动作列表长度
-        expected_length = self.num_uav + self.num_target
-        assert len(actions) == expected_length, f"动作列表长度错误: 期望{expected_length}, 实际{len(actions)}"
         return actions
 
     def learn(self, memory, total_steps):
@@ -99,6 +97,7 @@ class MADDPG:
         actor_new_states, states_, dones = memory.sample_buffer()
 
         device = self.agents[0].actor.device
+        actions = np.array(actions) # actions 是一个numpy数组
 
         states = T.tensor(states, dtype=T.float).to(device)
         actions = T.tensor(actions, dtype=T.float).to(device)
@@ -106,26 +105,43 @@ class MADDPG:
         states_ = T.tensor(states_, dtype=T.float).to(device)
         dones = T.tensor(dones).to(device)
 
+        # 调整actions维度 [8, 256, 2] -> [256, 16]
+        actions = actions.permute(1, 0, 2)  # [256, 8, 2]
+        actions = actions.reshape(actions.shape[0], -1)  # [256, 16]
+
         all_agents_new_actions = []
         old_agents_actions = []
     
         # 分别处理UAV和目标的新动作
-        for uav_idx in range(self.num_uav):
-            new_states = T.tensor(actor_new_states[uav_idx], dtype=T.float).to(device)
-            new_pi = self.agents[uav_idx].target_actor.forward(new_states)
-            all_agents_new_actions.append(new_pi)
-            old_agents_actions.append(actions[uav_idx])
+        #for uav_idx in range(self.num_uav):
+        #    new_states = T.tensor(actor_new_states[uav_idx], dtype=T.float).to(device)
+        #    new_pi = self.agents[uav_idx].target_actor.forward(new_states)
+        #    all_agents_new_actions.append(new_pi)
+        #    old_agents_actions.append(actions[uav_idx])
     
-        for target_idx in range(self.num_target):
-            agent_idx = self.num_uav + target_idx
+        #for target_idx in range(self.num_target):
+        #    agent_idx = self.num_uav + target_idx
+        #    new_states = T.tensor(actor_new_states[agent_idx], dtype=T.float).to(device)
+        #    new_pi = self.agents[agent_idx].target_actor.forward(new_states)
+        #    all_agents_new_actions.append(new_pi)
+        #    old_agents_actions.append(actions[agent_idx])
+        for agent_idx, agent in enumerate(self.agents):
+            # 获取新状态和动作
             new_states = T.tensor(actor_new_states[agent_idx], dtype=T.float).to(device)
-            new_pi = self.agents[agent_idx].target_actor.forward(new_states)
-            all_agents_new_actions.append(new_pi)
-            old_agents_actions.append(actions[agent_idx])
+            # 处理单维度情况
+            if len(new_states.shape) == 1:
+                new_states = new_states.unsqueeze(0)
 
+            new_pi = agent.target_actor.forward(new_states)
+            all_agents_new_actions.append(new_pi)
+        
+            # 确保动作维度正确
+            agent_actions = actions[:, agent_idx*self.n_actions:(agent_idx+1)*self.n_actions]
+            old_agents_actions.append(agent_actions)
+
+        # 连接所有的智能体
         new_actions = T.cat([acts for acts in all_agents_new_actions], dim=1)
         old_actions = T.cat([acts for acts in old_agents_actions],dim=1)
-
         for agent_idx, agent in enumerate(self.agents):
             with T.no_grad():
                 critic_value_ = agent.target_critic.forward(states_, new_actions).flatten()
@@ -138,7 +154,8 @@ class MADDPG:
             critic_loss.backward(retain_graph=True)
             agent.critic.optimizer.step()
             agent.critic.scheduler.step()
-
+            # 计算actor的损失
+            # 这里的actor_states是一个列表, 每个元素都是一个numpy数组
             mu_states = T.tensor(actor_states[agent_idx], dtype=T.float).to(device)
             oa = old_actions.clone()
             oa[:,agent_idx*self.n_actions:agent_idx*self.n_actions+self.n_actions] = agent.actor.forward(mu_states)            
